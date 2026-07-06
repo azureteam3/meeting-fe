@@ -159,41 +159,49 @@ export function useMeetingConnection(
     };
   }, []);
 
-  /**
-   * TranscriptEntry 추가 또는 갱신
-   *
-   * 서버가 같은 ID로 중간 자막을 계속 보내는 경우
-   * 기존 자막을 갱신합니다.
-   *
-   * 새로운 ID라면 최종 자막 목록에 추가합니다.
-   */
-  const applyTranscript = useCallback((msg: any) => {
-    const entry = msg?.payload;
+  const applyTranscript = useCallback(
+    (entry: TranscriptEntry) => {
 
-    // 🚨 안전 가드 (이거 필수)
-    if (!entry) return;
-
-    // 🔥 한국어 자막만 (fallback 포함)
-    const caption =
-      entry.translated_text ??
-      entry.cleaned_text ??
-      entry.original_text ??
-      "";
-
-    setCaption(caption);
-
-    // interim은 저장 안 함
-    if (!entry.is_final) return;
-
-    setTranscripts(prev => [
-      ...prev,
-      {
+      const translatedEntry = {
         ...entry,
+        translated_text: entry.translated_text ?? entry.cleaned_text ?? "",
+      };
 
-        // 🔥 UI용 통일 필드 (중요)
-        text: caption,
-      },
-    ]);
+      setCaption(translatedEntry);
+
+      setTranscripts((prev) => {
+        const index = prev.findIndex(t => t.id === entry.id);
+
+        if (index >= 0) {
+          const copy = [...prev];
+          copy[index] = translatedEntry;
+          return copy;
+        }
+
+        return [...prev, translatedEntry];
+      });
+
+    },
+    [],
+  );
+
+ const applyTranslation = useCallback((payload: {
+    id: string;
+    translated: string;
+  }) => {
+    setTranscripts((prev) =>
+      prev.map((t) =>
+        t.id === payload.id
+          ? { ...t, translated_text: payload.translated }
+          : t
+      )
+    );
+
+    setCaption((prev) =>
+      prev && prev.id === payload.id
+        ? { ...prev, translated_text: payload.translated }
+        : prev
+    );
   }, []);
 
   /**
@@ -278,6 +286,10 @@ export function useMeetingConnection(
 
               setMicLoading(false);
             });
+        },
+
+        onTranslationUpdate: (payload) => {
+          applyTranslation(payload);
         },
 
         onClose: () => {

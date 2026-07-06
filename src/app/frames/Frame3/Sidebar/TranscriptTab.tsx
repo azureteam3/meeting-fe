@@ -26,7 +26,6 @@ export function TranscriptTab({
       {transcripts.map((entry, i) => {
         const speaker = participants[entry.speakerIdx];
         if (!speaker) return null;
-        const isOriginalLang = speaker.lang === language;
         return (
           <motion.div
             key={entry.id}
@@ -52,16 +51,29 @@ export function TranscriptTab({
 
             {/* Content */}
             <div className="px-3 py-2.5 space-y-2">
-              {!isOriginalLang && (
-                <div>
-                  <div className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-1">원문</div>
-                  <p className="text-xs text-[#9CA3AF] leading-relaxed">{entry.original}</p>
-                </div>
-              )}
+
+              {/* 원문 - 항상 표시 */}
               <div>
-                {!isOriginalLang && <div className="text-[9px] font-semibold text-[#0078D4] uppercase tracking-wider mb-1">번역 ({langLabel[language]})</div>}
-                <p className="text-xs text-[#111827] leading-relaxed font-medium">{entry.translations[language]}</p>
+                <div className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-1">
+                  원문
+                </div>
+                <p className="text-xs text-[#9CA3AF] leading-relaxed">
+                  {entry.original_text}
+                </p>
               </div>
+
+              {/* 번역 - 항상 표시 */}
+              <div>
+                <div className="text-[9px] font-semibold text-[#0078D4] uppercase tracking-wider mb-1">
+                  번역 ({langLabel[language]})
+                </div>
+
+                <p className="text-xs text-[#111827] leading-relaxed font-medium">
+                  {entry.translated_text ??
+                    entry.original_text}
+                </p>
+              </div>
+
             </div>
           </motion.div>
         );

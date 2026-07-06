@@ -376,8 +376,8 @@ export function Frame3({
 
           <CaptionBar
             caption={
-              caption?.translations[language] ||
-              caption?.original ||
+              caption?.cleaned_text ??
+              caption?.original_text ??
               ""
             }
             captionIdx={transcripts.length}
