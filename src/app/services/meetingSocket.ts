@@ -32,8 +32,8 @@ export interface MeetingSocketHandlers {
   onTranslationUpdate?: (payload: {
     id: string;
     translated: string;
+    translations?: Partial<Record<Language, string>>;
   }) => void;
-
   onSpeakerChange?: (speakerIdx: number) => void;
   onParticipants?: (participants: Participant[]) => void;
   onChatMessage?: (message: ChatMessage) => void;
@@ -68,6 +68,7 @@ interface TranscriptPayload {
   id?: string;
   text?: string;
   original?: string;
+  translated?: string | null;
   translated_text?: string | null;
   translations?: Partial<Record<Language, string>>;
   language?: Language;
@@ -77,7 +78,43 @@ interface TranscriptPayload {
   speakerIdx?: number;
   username?: string;
   is_final?: boolean;
-  translated?: string | null;
+}
+
+function toAppLanguage(language?: string | null): Language | undefined {
+  if (!language) {
+    return undefined;
+  }
+
+  if (language === "zh-Hans" || language === "zh-CN") {
+    return "zh";
+  }
+
+  if (
+    language === "ko" ||
+    language === "en" ||
+    language === "ja" ||
+    language === "zh"
+  ) {
+    return language;
+  }
+
+  if (language.startsWith("ko")) {
+    return "ko";
+  }
+
+  if (language.startsWith("en")) {
+    return "en";
+  }
+
+  if (language.startsWith("ja")) {
+    return "ja";
+  }
+
+  if (language.startsWith("zh")) {
+    return "zh";
+  }
+
+  return undefined;
 }
 
 const RECONNECT_DELAY_MS = 2000;
@@ -97,7 +134,6 @@ const TARGET_SAMPLE_RATE = 16000;
 const AUDIO_BUFFER_SIZE = 4096;
 
 export class MeetingSocket {
-  private captionMap = new Map<string, TranscriptEntry>();
   private ws: WebSocket | null = null;
 
   private reconnectAttempts = 0;
@@ -150,7 +186,9 @@ export class MeetingSocket {
       return;
     }
 
-    const baseUrl = ENV.wsBaseUrl.replace(/\/+$/, "");
+    const baseUrl = ENV.wsBaseUrl
+      .replace(/\/+$/, "")
+      .replace(/\/ws$/, "");
 
     const query = new URLSearchParams({
       username: this.username,
@@ -311,12 +349,6 @@ export class MeetingSocket {
     console.log("[MeetingSocket] 메시지 수신:", message);
 
     switch (message.type) {
-
-      case "translation_update": {
-        this.handleTranslationUpdate(message.payload);
-        break;
-      }
-
       case "caption": {
         this.handleCaptionMessage(message.payload);
         break;
@@ -324,6 +356,11 @@ export class MeetingSocket {
 
       case "transcript": {
         this.handleTranscriptMessage(message.payload);
+        break;
+      }
+
+      case "translation_update": {
+        this.handleTranslationUpdate(message.payload);
         break;
       }
 
@@ -459,7 +496,12 @@ export class MeetingSocket {
    * caption 메시지 처리
    */
   private handleCaptionMessage(payload: unknown): void {
-    if (!payload) return;
+    if (!payload) {
+      console.warn(
+        "[MeetingSocket] caption payload가 없습니다.",
+      );
+      return;
+    }
 
     const caption = payload as Partial<TranscriptEntry>;
 
@@ -467,18 +509,20 @@ export class MeetingSocket {
      * 서버 payload가 이미 TranscriptEntry 구조라면 그대로 사용합니다.
      */
     if (
-      typeof caption.original_text === "string" &&
-      typeof caption.id === "string" 
+      typeof caption.id === "string" &&
+      typeof caption.original === "string" &&
+      caption.translations
     ) {
-      this.captionMap.set(caption.id, caption as TranscriptEntry);
       this.handlers.onCaption?.(
         caption as TranscriptEntry,
       );
       return;
     }
 
-    console.warn("[MeetingSocket] 잘못된 caption 메시지 (id 또는 original_text 누락) :", payload);
-
+    /*
+     * transcript 형식으로 전달될 가능성도 처리합니다.
+     */
+    this.handleTranscriptMessage(payload);
   }
 
   /**
@@ -496,10 +540,8 @@ export class MeetingSocket {
   if (typeof payload === "string") {
     const entry = this.createTranscriptEntry({
       text: payload,
-      is_final: forceFinal, 
+      is_final: forceFinal,
     });
-
-    this.captionMap.set(entry.id, entry);
 
     this.handlers.onCaption?.(entry);
     return;
@@ -532,8 +574,6 @@ export class MeetingSocket {
     is_final: forceFinal ?? payload.is_final,
   });
 
-  this.captionMap.set(entry.id, entry); 
-
   const speakerIdx =
     payload.speakerIdx ??
     payload.speaker_idx;
@@ -558,68 +598,103 @@ export class MeetingSocket {
       "";
 
     const translatedText =
-      payload.translated_text?.trim() || text;
+      payload.translated_text?.trim() ||
+      payload.translated?.trim() ||
+      "";
 
     const translations: Record<Language, string> = {
-      ko:
-        payload.translations?.ko ??
-        (this.language === "ko" ? text : translatedText),
-      en:
-        payload.translations?.en ??
-        (this.language === "en" ? text : translatedText),
-      ja:
-        payload.translations?.ja ??
-        (this.language === "ja" ? text : translatedText),
+      ko: payload.translations?.ko ?? translatedText,
+      en: payload.translations?.en ?? "",
+      ja: payload.translations?.ja ?? "",
       zh:
         payload.translations?.zh ??
-        (this.language === "zh" ? text : translatedText),
+        (payload.translations as Record<string, string | undefined> | undefined)?.[
+          "zh-Hans"
+        ] ??
+        "",
     };
 
     return {
       id:
         payload.id ??
         payload.created_at ??
-        `transcript-${Date.now()}`,
+        `transcript-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`,
 
       speakerIdx:
         payload.speakerIdx ??
         payload.speaker_idx ??
         0,
 
-      original_text: text,
+      ts: payload.created_at
+        ? this.formatTimestamp(payload.created_at)
+        : new Date().toLocaleTimeString("ko-KR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
 
-      cleaned_text: text,
-
-      translated_text:
-        payload.translated_text ??
-        payload.translated ??
-        text,
-
-      created_at: payload.created_at,
+      original: text,
+      originalLanguage: toAppLanguage(payload.language),
+      translations,
+      isFinal: payload.is_final,
     };
   }
 
   private handleTranslationUpdate(payload: unknown): void {
-    const data = payload as {
-      id: string;
-      translated?: string | null;
-    };
+    const data = payload as
+      | {
+          id?: unknown;
+          translated?: unknown;
+          translated_text?: unknown;
+          translations?: unknown;
+        }
+      | undefined;
 
-    if (!data?.id) {
+    if (!data || typeof data.id !== "string") {
+      console.warn(
+        "[MeetingSocket] 잘못된 translation_update 메시지:",
+        payload,
+      );
       return;
     }
 
-    const entry = this.captionMap.get(data.id);
+    const translated =
+      typeof data.translated === "string"
+        ? data.translated
+        : typeof data.translated_text === "string"
+          ? data.translated_text
+          : "";
+    const rawTranslations =
+      data.translations &&
+      typeof data.translations === "object"
+        ? (data.translations as Record<string, unknown>)
+        : undefined;
 
-    if (!entry) {
-      return;
+    const translations: Partial<Record<Language, string>> = {};
+
+    if (typeof rawTranslations?.ko === "string") {
+      translations.ko = rawTranslations.ko;
     }
 
-    entry.translated_text = data.translated ?? "";
-    
+    if (typeof rawTranslations?.en === "string") {
+      translations.en = rawTranslations.en;
+    }
+
+    if (typeof rawTranslations?.ja === "string") {
+      translations.ja = rawTranslations.ja;
+    }
+
+    if (typeof rawTranslations?.zh === "string") {
+      translations.zh = rawTranslations.zh;
+    } else if (typeof rawTranslations?.["zh-Hans"] === "string") {
+      translations.zh = rawTranslations["zh-Hans"];
+    }
+
     this.handlers.onTranslationUpdate?.({
       id: data.id,
-      translated: data.translated ?? "",
+      translated,
+      translations,
     });
   }
 
@@ -1222,11 +1297,9 @@ export class MeetingSocket {
       }
 
       const idx =
-        this.mockIdx % CAPTIONS.ko.length;
+        this.mockIdx % captionLength;
 
       this.mockIdx += 1;
-
-      const text = CAPTIONS.ko[idx];
 
       this.mockSpeakerCycle =
         (this.mockSpeakerCycle + 1) %
@@ -1240,10 +1313,21 @@ export class MeetingSocket {
       const entry: TranscriptEntry = {
         id: `mock-${Date.now()}`,
         speakerIdx,
-        original_text: text,
-        cleaned_text: text,
-        translated_text: text,
-        created_at: new Date().toISOString(),
+        ts: new Date().toLocaleTimeString(
+          "ko-KR",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          },
+        ),
+        original: CAPTIONS.ko[idx],
+        translations: {
+          ko: CAPTIONS.ko[idx],
+          en: CAPTIONS.en[idx],
+          ja: CAPTIONS.ja[idx],
+          zh: CAPTIONS.zh[idx],
+        },
+        isFinal: true,
       };
 
       this.handlers.onSpeakerChange?.(

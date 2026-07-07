@@ -5,11 +5,11 @@ export type Tab = "transcript" | "chat";
 export interface TranscriptEntry {
   id: string;
   speakerIdx: number;
-  ts?: string;
-  original_text: string;
-  cleaned_text?: string;
-  translated_text?: string;
-  created_at?: string;
+  original: string;
+  originalLanguage?: Language;
+  translations: Record<Language, string>;
+  ts: string;
+  isFinal?: boolean;
 }
 
 export interface ChatMessage {

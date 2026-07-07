@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   Video, Globe, ChevronDown, Shield, Clock, CheckCircle2, X,
 } from "lucide-react";
-import { LANG_OPTIONS, PARTICIPANTS } from "../data/participants";
+import { LANG_OPTIONS } from "../data/participants";
 import type { Language } from "../types";
 
 export function Frame2({
@@ -53,7 +53,7 @@ export function Frame2({
               </div>
             </div>
             <h2 className="text-xl font-bold text-[#111827] mb-1">회의 입장 정보 입력</h2>
-            <p className="text-sm text-[#6B7280]">이름과 AI 번역 출력 언어를 선택하세요</p>
+            <p className="text-sm text-[#6B7280]">이름과 참여자 발화 언어를 선택하세요</p>
           </div>
 
           <div className="px-8 py-6 space-y-5">
@@ -79,7 +79,7 @@ export function Frame2({
             {/* Language */}
             <div>
               <label className="block text-sm font-semibold text-[#111827] mb-2">
-                AI 번역 출력 언어 <span className="text-[#C42B1C]">*</span>
+                참여자 발화 언어 <span className="text-[#C42B1C]">*</span>
               </label>
               <div className="relative">
                 <button
@@ -100,7 +100,7 @@ export function Frame2({
                   ) : (
                     <span className="text-[#9CA3AF] flex items-center gap-2">
                       <Globe size={15} />
-                      언어를 선택하세요
+                      발화 언어를 선택하세요
                     </span>
                   )}
                   <ChevronDown size={15} className={`text-[#6B7280] transition-transform ${langOpen ? "rotate-180" : ""}`} />
@@ -131,7 +131,7 @@ export function Frame2({
                   )}
                 </AnimatePresence>
               </div>
-              {langError && <p className="mt-1.5 text-xs text-[#C42B1C] flex items-center gap-1"><X size={11} /> 언어를 선택해주세요</p>}
+              {langError && <p className="mt-1.5 text-xs text-[#C42B1C] flex items-center gap-1"><X size={11} /> 발화 언어를 선택해주세요</p>}
             </div>
 
             {/* Language note */}
@@ -142,7 +142,7 @@ export function Frame2({
                 className="p-3 rounded-xl bg-[#EBF3FB] border border-[#0078D4]/15"
               >
                 <p className="text-xs text-[#0063b1] leading-relaxed">
-                  <span className="font-semibold">AI 단일 언어 출력:</span> 회의 중 모든 자막, 번역, AI 응답이 <span className="font-semibold">{selectedLang?.label}</span>로만 표시됩니다.
+                  <span className="font-semibold">발화 언어:</span> 회의 중 내 음성은 <span className="font-semibold">{selectedLang?.label}</span>로 인식됩니다.
                 </p>
               </motion.div>
             )}
@@ -173,27 +173,6 @@ export function Frame2({
               <span>·</span>
               <span className="flex items-center gap-1"><Globe size={11} /> 4개 언어 지원</span>
             </div>
-          </div>
-        </motion.div>
-
-        {/* Participant preview */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          className="mt-5 px-4"
-        >
-          <p className="text-xs text-center text-[#6B7280] mb-3">현재 회의 참가자</p>
-          <div className="flex items-center justify-center gap-2">
-            {PARTICIPANTS.map((p) => (
-              <div key={p.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-black/[0.07] shadow-sm">
-                <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ background: p.color }}>
-                  {p.initials[0]}
-                </div>
-                <span className="text-xs text-[#374151] font-medium">{p.name}</span>
-                <span className="text-xs">{p.flag}</span>
-              </div>
-            ))}
           </div>
         </motion.div>
       </div>

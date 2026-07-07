@@ -2,13 +2,12 @@ node_modules/
 dist/
 .vite/
 .env
-.env/
 .env.local
-.DS_Store
-venv/
-.venv/
-.idea/
 .env.development.local
 .env.test.local
 .env.production.local
+.DS_Store
+.idea/
+.venv/
+venv/
 *.local

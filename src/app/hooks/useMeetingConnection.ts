@@ -161,48 +161,58 @@ export function useMeetingConnection(
 
   const applyTranscript = useCallback(
     (entry: TranscriptEntry) => {
+      setCaption(entry);
 
-      const translatedEntry = {
-        ...entry,
-        translated_text: entry.translated_text ?? entry.cleaned_text ?? "",
-      };
-
-      setCaption(translatedEntry);
+      if (entry.isFinal === false) {
+        return;
+      }
 
       setTranscripts((prev) => {
-        const index = prev.findIndex(t => t.id === entry.id);
+        const index = prev.findIndex(
+          (item) => item.id === entry.id,
+        );
 
         if (index >= 0) {
           const copy = [...prev];
-          copy[index] = translatedEntry;
+          copy[index] = entry;
           return copy;
         }
 
-        return [...prev, translatedEntry];
+        return [...prev, entry];
       });
-
     },
     [],
   );
 
- const applyTranslation = useCallback((payload: {
-    id: string;
-    translated: string;
-  }) => {
-    setTranscripts((prev) =>
-      prev.map((t) =>
-        t.id === payload.id
-          ? { ...t, translated_text: payload.translated }
-          : t
-      )
-    );
+  const applyTranslation = useCallback(
+    (payload: {
+      id: string;
+      translated: string;
+      translations?: Partial<Record<Language, string>>;
+    }) => {
+      const updateEntry = (entry: TranscriptEntry): TranscriptEntry =>
+        entry.id === payload.id
+          ? {
+              ...entry,
+              translations: {
+                ...entry.translations,
+                ...payload.translations,
+                ko:
+                  payload.translations?.ko ||
+                  payload.translated ||
+                  entry.translations.ko,
+                ...(language === "ko"
+                  ? { [language]: payload.translated || entry.original }
+                  : {}),
+              },
+            }
+          : entry;
 
-    setCaption((prev) =>
-      prev && prev.id === payload.id
-        ? { ...prev, translated_text: payload.translated }
-        : prev
-    );
-  }, []);
+      setTranscripts((prev) => prev.map(updateEntry));
+      setCaption((prev) => (prev ? updateEntry(prev) : prev));
+    },
+    [language],
+  );
 
   /**
    * WebSocket 연결
@@ -289,6 +299,10 @@ export function useMeetingConnection(
         },
 
         onTranslationUpdate: (payload) => {
+          if (disposed) {
+            return;
+          }
+
           applyTranslation(payload);
         },
 
@@ -449,6 +463,7 @@ export function useMeetingConnection(
     username,
     language,
     applyTranscript,
+    applyTranslation,
   ]);
 
   /**

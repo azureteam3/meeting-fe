@@ -33,7 +33,9 @@ export default function App() {
     setJoinError(null);
     try {
       const meetingId = resolveMeetingId();
-      const data = await joinMeeting(meetingId, name, lang);
+      const appUserId = `web-${name}`;
+      const data = await joinMeeting(meetingId, appUserId, name, lang);
+
       setUsername(name);
       setLanguage(lang);
       setMeetingData(data);

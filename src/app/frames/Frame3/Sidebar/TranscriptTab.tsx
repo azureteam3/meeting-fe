@@ -1,6 +1,27 @@
 import { motion } from "motion/react";
 import type { Language, Participant, TranscriptEntry } from "../../../types";
 
+function getFallbackSpeaker(
+  participants: Participant[],
+  language: Language,
+  langLabel: Record<Language, string>,
+): Participant {
+  return (
+    participants[0] ?? {
+      id: "unknown-speaker",
+      name: "알 수 없는 화자",
+      country: "KR",
+      flag: "🎙️",
+      lang: language,
+      langLabel: langLabel[language],
+      initials: "화",
+      color: "#6B7280",
+      bg: "#F3F4F6",
+      role: "participant",
+    }
+  );
+}
+
 export function TranscriptTab({
   language,
   langLabel,
@@ -24,8 +45,14 @@ export function TranscriptTab({
       )}
 
       {transcripts.map((entry, i) => {
-        const speaker = participants[entry.speakerIdx];
-        if (!speaker) return null;
+        const speaker =
+          participants[entry.speakerIdx] ??
+          getFallbackSpeaker(participants, language, langLabel);
+        const originalLanguage = entry.originalLanguage ?? speaker.lang;
+        const needsTranslation = originalLanguage !== language;
+        const translated =
+          entry.translations[language]?.trim() ?? "";
+
         return (
           <motion.div
             key={entry.id}
@@ -44,36 +71,26 @@ export function TranscriptTab({
                 <span className="text-[10px] text-[#6B7280] ml-1.5">{speaker.flag}</span>
               </div>
               <div className="flex items-center gap-1.5 flex-none">
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/80 text-[#6B7280] font-medium border border-black/[0.06]">{speaker.langLabel}</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/80 text-[#6B7280] font-medium border border-black/[0.06]">{langLabel[originalLanguage]}</span>
                 <span className="text-[9px] text-[#9CA3AF]">{entry.ts}</span>
               </div>
             </div>
 
             {/* Content */}
             <div className="px-3 py-2.5 space-y-2">
-
-              {/* 원문 - 항상 표시 */}
               <div>
-                <div className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-1">
-                  원문
-                </div>
-                <p className="text-xs text-[#9CA3AF] leading-relaxed">
-                  {entry.original_text}
-                </p>
+                <div className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-1">원문</div>
+                <p className="text-xs text-[#9CA3AF] leading-relaxed">{entry.original}</p>
               </div>
 
-              {/* 번역 - 항상 표시 */}
-              <div>
-                <div className="text-[9px] font-semibold text-[#0078D4] uppercase tracking-wider mb-1">
-                  번역 ({langLabel[language]})
+              {needsTranslation && (
+                <div>
+                  <div className="text-[9px] font-semibold text-[#0078D4] uppercase tracking-wider mb-1">번역 ({langLabel[language]})</div>
+                  <p className="text-xs text-[#111827] leading-relaxed font-medium">
+                    {translated || "번역 대기 중..."}
+                  </p>
                 </div>
-
-                <p className="text-xs text-[#111827] leading-relaxed font-medium">
-                  {entry.translated_text ??
-                    entry.original_text}
-                </p>
-              </div>
-
+              )}
             </div>
           </motion.div>
         );
