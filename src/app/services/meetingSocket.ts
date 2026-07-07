@@ -467,13 +467,17 @@ export class MeetingSocket {
      * 서버 payload가 이미 TranscriptEntry 구조라면 그대로 사용합니다.
      */
     if (
-      typeof caption.original_text === "string"
+      typeof caption.original_text === "string" &&
+      typeof caption.id === "string" 
     ) {
+      this.captionMap.set(caption.id, caption as TranscriptEntry);
       this.handlers.onCaption?.(
         caption as TranscriptEntry,
       );
       return;
     }
+
+    console.warn("[MeetingSocket] 잘못된 caption 메시지 (id 또는 original_text 누락) :", payload);
 
   }
 
