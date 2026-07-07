@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -19,7 +20,6 @@ import { downloadMinutes } from "../../services/meetingApi";
 
 import { MeetingHeader } from "./MeetingHeader";
 import { VideoGrid } from "./VideoGrid";
-import { LocalVideo } from "./LocalVideo";
 import { CaptionBar } from "./CaptionBar";
 import { MeetingControls } from "./MeetingControls";
 import { Sidebar } from "./Sidebar";
@@ -81,38 +81,25 @@ export function Frame3({
   const [vidOn, setVidOn] = useState(true);
 
   const [elapsed, setElapsed] = useState(0);
-  const [showEndConfirm, setShowEndConfirm] =
-    useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   const [ending, setEnding] = useState(false);
-  const [endError, setEndError] =
-    useState<string | null>(null);
+  const [endError, setEndError] = useState<string | null>(null);
 
-  const chatEndRef =
-    useRef<HTMLDivElement | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
-  /*
-   * ACS Calling SDK 실제 영상회의 연결
-   *
-   * token:
-   *   백엔드 POST /communication/token 응답값
-   *
-   * meetingId:
-   *   ACS Group Call에 사용할 UUID
-   */
   const {
     call,
     callState,
     localVideoStream,
+    remoteParticipants,
+    remoteVideoMap,
   } = useAcsCall({
     token,
     username,
     meetingId,
   });
 
-  /*
-   * 자막, 참가자, AI 채팅용 WebSocket 연결
-   */
   const {
     connected: socketConnected,
     participants,
@@ -138,24 +125,13 @@ export function Frame3({
     onMeetingEnded: onEnd,
   });
 
-  /*
-   * ACS 통화 연결 여부
-   */
   const callConnected =
     callState === "Connected" ||
     callState === "LocalHold" ||
     callState === "RemoteHold";
 
-  /*
-   * 헤더에는 WebSocket과 ACS 통화가 모두 연결된 경우
-   * 정상 연결 상태로 표시
-   */
-  const connected =
-    socketConnected && callConnected;
+  const connected = socketConnected && callConnected;
 
-  /*
-   * 회의 시간
-   */
   useEffect(() => {
     const timer = window.setInterval(() => {
       setElapsed((current) => current + 1);
@@ -166,9 +142,6 @@ export function Frame3({
     };
   }, []);
 
-  /*
-   * 채팅 메시지가 추가되면 하단으로 이동
-   */
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -176,9 +149,6 @@ export function Frame3({
     });
   }, [chatMessages]);
 
-  /*
-   * AI 채팅 전송
-   */
   const sendMessage = useCallback(
     (text?: string) => {
       const question = (text ?? chatInput).trim();
@@ -193,42 +163,32 @@ export function Frame3({
     [chatInput, sendChat],
   );
 
-  /*
-   * 회의록(.docx) 다운로드 — 백엔드가 전체 자막으로 생성해 파일로 내려준다.
-   */
-  const [downloadingMinutes, setDownloadingMinutes] =
-    useState(false);
+  const [downloadingMinutes, setDownloadingMinutes] = useState(false);
 
-  const handleDownloadMinutes =
-    useCallback(async () => {
-      if (downloadingMinutes) {
-        return;
-      }
+  const handleDownloadMinutes = useCallback(async () => {
+    if (downloadingMinutes) {
+      return;
+    }
 
-      setDownloadingMinutes(true);
-      setEndError(null);
+    setDownloadingMinutes(true);
+    setEndError(null);
 
-      try {
-        await downloadMinutes(meetingId);
-      } catch (error) {
-        setEndError(
-          error instanceof Error
-            ? error.message
-            : "회의록 다운로드에 실패했습니다.",
-        );
-      } finally {
-        setDownloadingMinutes(false);
-      }
-    }, [downloadingMinutes, meetingId]);
+    try {
+      await downloadMinutes(meetingId);
+    } catch (error) {
+      setEndError(
+        error instanceof Error
+          ? error.message
+          : "회의록 다운로드에 실패했습니다.",
+      );
+    } finally {
+      setDownloadingMinutes(false);
+    }
+  }, [downloadingMinutes, meetingId]);
 
-  /*
-   * 실제 ACS 마이크와 서버 상태를 함께 변경
-   */
   const handleToggleMic = useCallback(async () => {
     if (!call) {
-      console.warn(
-        "ACS 통화가 아직 연결되지 않았습니다.",
-      );
+      console.warn("ACS 통화가 아직 연결되지 않았습니다.");
       return;
     }
 
@@ -242,114 +202,109 @@ export function Frame3({
       }
 
       setMicOn(next);
-
-      /*
-       * 이 WebSocket 메시지는 실제 마이크를 제어하는 것이 아니라
-       * 백엔드에 현재 UI 상태를 전달하는 용도
-       */
       toggleMic(next);
     } catch (error) {
-      console.error(
-        "마이크 상태 변경에 실패했습니다.",
-        error,
-      );
+      console.error("마이크 상태 변경에 실패했습니다.", error);
     }
   }, [call, micOn, toggleMic]);
 
-  /*
-   * 실제 ACS 카메라와 서버 상태를 함께 변경
-   */
-  const handleToggleVideo =
-    useCallback(async () => {
-      if (!call) {
-        console.warn(
-          "ACS 통화가 아직 연결되지 않았습니다.",
-        );
-        return;
+  const handleToggleVideo = useCallback(async () => {
+    if (!call) {
+      console.warn("ACS 통화가 아직 연결되지 않았습니다.");
+      return;
+    }
+
+    if (!localVideoStream) {
+      console.warn("사용 가능한 로컬 카메라 스트림이 없습니다.");
+      return;
+    }
+
+    const next = !vidOn;
+
+    try {
+      if (next) {
+        await call.startVideo(localVideoStream);
+      } else {
+        await call.stopVideo(localVideoStream);
       }
 
-      if (!localVideoStream) {
-        console.warn(
-          "사용 가능한 로컬 카메라 스트림이 없습니다.",
-        );
-        return;
+      setVidOn(next);
+      toggleVideo(next);
+    } catch (error) {
+      console.error("카메라 상태 변경에 실패했습니다.", error);
+    }
+  }, [call, localVideoStream, toggleVideo, vidOn]);
+
+  const handleConfirmEnd = useCallback(async () => {
+    if (ending) {
+      return;
+    }
+
+    setEnding(true);
+    setEndError(null);
+
+    try {
+      if (call) {
+        await call.hangUp({
+          forEveryone: false,
+        });
       }
 
-      const next = !vidOn;
+      await endMeeting();
 
-      try {
-        if (next) {
-          await call.startVideo(localVideoStream);
-        } else {
-          await call.stopVideo(localVideoStream);
-        }
+      setShowEndConfirm(false);
+      onEnd();
+    } catch (error) {
+      console.error("회의 종료에 실패했습니다.", error);
 
-        setVidOn(next);
+      setEndError(
+        "회의 종료에 실패했습니다. 잠시 후 다시 시도해주세요.",
+      );
+    } finally {
+      setEnding(false);
+    }
+  }, [call, endMeeting, ending, onEnd]);
 
-        /*
-         * 백엔드에는 카메라 UI 상태만 전달
-         */
-        toggleVideo(next);
-      } catch (error) {
-        console.error(
-          "카메라 상태 변경에 실패했습니다.",
-          error,
-        );
-      }
-    }, [
-      call,
-      localVideoStream,
-      toggleVideo,
-      vidOn,
-    ]);
+  const displayParticipants = useMemo(() => {
+    const others = participants.filter(
+      (p) => p.name !== username,
+    );
 
-  /*
-   * 전체 회의 종료
-   */
-  const handleConfirmEnd =
-    useCallback(async () => {
-      if (ending) {
-        return;
-      }
+    const me: Participant = {
+      id: "local-user",
+      name: username,
+      country: "KR",
+      flag: "🇰🇷",
+      lang: language,
+      langLabel: LANG_LABEL[language],
+      initials: username.trim().charAt(0) || "나",
+      color: "#0078D4",
+      bg: "#EAF2FF",
+      role: "self",
+    };
 
-      setEnding(true);
-      setEndError(null);
+    return [me, ...others];
+  }, [participants, username, language]);
 
-      try {
-        /*
-         * 프론트 ACS 통화 종료
-         *
-         * 백엔드에서도 hang_up=true를 호출하므로
-         * 여기서는 현재 사용자의 통화만 먼저 종료
-         */
-        if (call) {
-          await call.hangUp({
-            forEveryone: false,
-          });
-        }
+  const displayActiveSpeakerIdx = useMemo(() => {
+    const serverParticipants = participants.filter(
+      (p) => p.name !== username,
+    );
 
-        await endMeeting();
+    if (activeSpeakerIdx < 0) {
+      return -1;
+    }
 
-        setShowEndConfirm(false);
-        onEnd();
-      } catch (error) {
-        console.error(
-          "회의 종료에 실패했습니다.",
-          error,
-        );
+    const activeParticipant = serverParticipants[activeSpeakerIdx];
 
-        setEndError(
-          "회의 종료에 실패했습니다. 잠시 후 다시 시도해주세요.",
-        );
-      } finally {
-        setEnding(false);
-      }
-    }, [
-      call,
-      endMeeting,
-      ending,
-      onEnd,
-    ]);
+    if (!activeParticipant) {
+      return -1;
+    }
+
+    return displayParticipants.findIndex(
+      (p) => p.id === activeParticipant.id,
+    );
+  }, [activeSpeakerIdx, displayParticipants, participants, username]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#F7F8FA]">
@@ -358,7 +313,7 @@ export function Frame3({
         language={language}
         langLabel={LANG_LABEL}
         elapsedLabel={formatTime(elapsed)}
-        participantCount={participants.length}
+        participantCount={displayParticipants.length}
         connected={connected}
         downloadingMinutes={downloadingMinutes}
         onDownloadMinutes={() => {
@@ -375,30 +330,15 @@ export function Frame3({
           className="flex min-w-0 flex-col"
           style={{ width: "67%" }}
         >
-          {/*
-           * 영상 영역
-           *
-           * 기존 VideoGrid를 유지하면서 로컬 카메라를
-           * 우측 하단의 작은 화면으로 표시
-           */}
           <div className="relative min-h-0 flex-1 overflow-hidden">
             <VideoGrid
-              participants={participants}
-              activeSpeakerIdx={activeSpeakerIdx}
+              participants={displayParticipants}
+              activeSpeakerIdx={displayActiveSpeakerIdx}
               currentUserName={username}
+              localVideoStream={vidOn ? localVideoStream : null}
+              remoteParticipants={remoteParticipants}
+              remoteVideoMap={remoteVideoMap}
             />
-
-            {vidOn && localVideoStream && (
-              <div className="absolute bottom-4 right-4 z-20 h-36 w-52 overflow-hidden rounded-xl border-2 border-white bg-black shadow-lg">
-                <LocalVideo
-                  stream={localVideoStream}
-                />
-
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1 text-[10px] text-white">
-                  {username} · 나
-                </div>
-              </div>
-            )}
 
             {!callConnected && (
               <div className="pointer-events-none absolute left-4 top-4 z-20 rounded-lg bg-black/65 px-3 py-2 text-xs text-white">

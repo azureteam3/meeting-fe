@@ -33,6 +33,15 @@ export function LocalVideo({
           containerRef.current.appendChild(
             createdView.target,
           );
+
+          const video =
+            containerRef.current.querySelector("video");
+
+          if (video) {
+            video.style.width = "100%";
+            video.style.height = "100%";
+            video.style.objectFit = "cover";
+          }
         }
       })
       .catch((error) => {
@@ -55,7 +64,7 @@ export function LocalVideo({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full overflow-hidden bg-black"
+      className="h-full w-full overflow-hidden bg-black"
     />
   );
 }

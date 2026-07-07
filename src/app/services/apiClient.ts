@@ -2,6 +2,7 @@ import { ENV } from "../config/env";
 
 export class ApiError extends Error {
   status: number;
+
   constructor(message: string, status: number) {
     super(message);
     this.name = "ApiError";
@@ -30,7 +31,7 @@ async function request<T>(
       ...options,
       headers,
     });
-  } catch (error) {
+  } catch {
     throw new ApiError(
       "서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.",
       0,
@@ -52,6 +53,8 @@ async function request<T>(
         message = data.detail;
       } else if (typeof data.message === "string") {
         message = data.message;
+      } else if (Array.isArray(data.detail)) {
+        message = JSON.stringify(data);
       }
     } catch {
       // JSON 응답이 아니면 기존 문자열 사용
@@ -79,9 +82,19 @@ async function request<T>(
 
 export const apiClient = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
+
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      method: "POST",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
+
   patch: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+    request<T>(path, {
+      method: "PATCH",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
+
+  delete: <T>(path: string) =>
+    request<T>(path, { method: "DELETE" }),
 };

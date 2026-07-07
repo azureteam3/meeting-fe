@@ -27,6 +27,14 @@ import type {
 } from "../types";
 
 /**
+ * POST /communication/sessions 요청
+ */
+interface CreateSessionRequest {
+  participant_id: string;
+  participant_kind?: "acs_user" | "phone_number";
+}
+
+/**
  * POST /communication/sessions 응답
  */
 interface CreateSessionResponse {
@@ -35,6 +43,14 @@ interface CreateSessionResponse {
   session_id: string;
   status: string | null;
   created_at: string | null;
+}
+
+/**
+ * POST /communication/token 요청
+ */
+interface TokenRequest {
+  app_user_id: string;
+  user_name?: string;
 }
 
 /**
@@ -48,9 +64,6 @@ interface TokenResponse {
 
 /**
  * POST /sessions/start 응답
- *
- * SessionManager.start_session()의 실제 반환 구조가
- * 달라질 수 있어서 선택 필드로 구성
  */
 interface StartSessionResponse {
   meeting_id?: string;
@@ -87,17 +100,19 @@ async function cleanupCreatedSession(sessionId: string): Promise<void> {
  * 회의 입장
  *
  * 처리 순서
- * 1. Communication 세션 생성
- * 2. ACS 사용자 Identity 및 VoIP Token 발급
+ * 1. ACS 사용자 Identity 및 VoIP Token 발급
+ * 2. Communication 세션 생성
  * 3. 음성 인식·자막 세션 시작
  *
  * 입력
  *   meetingId: 프론트에서 사용하는 회의 ID
+ *   appUserId: 앱 사용자 고유 ID (DB PK 또는 실제 고유 식별자)
  *   username: 사용자 표시 이름
  *   language: 번역 출력 언어
  */
 export async function joinMeeting(
   meetingId: string,
+  appUserId: string,
   username: string,
   language: Language,
 ): Promise<JoinMeetingResponse> {
@@ -119,39 +134,29 @@ export async function joinMeeting(
   let createdSessionId: string | null = null;
 
   try {
-    /**
-     * 1. 백엔드 Communication 세션 생성
-     *
-     * POST /communication/sessions
-     */
+    const tokenPayload: TokenRequest = {
+      app_user_id: appUserId,
+      user_name: username,
+    };
+
+    const token = await apiClient.post<TokenResponse>(
+      "/communication/token",
+      tokenPayload,
+    );
+
+    const sessionPayload: CreateSessionRequest = {
+      participant_id: token.identity,
+      participant_kind: "acs_user",
+    };
+
     const session =
       await apiClient.post<CreateSessionResponse>(
         "/communication/sessions",
-        {},
+        sessionPayload,
       );
 
     createdSessionId = session.session_id;
 
-    /**
-     * 2. ACS Identity 및 VoIP Token 발급
-     *
-     * POST /communication/token
-     */
-    const token = await apiClient.post<TokenResponse>(
-      "/communication/token",
-      {},
-    );
-
-    /**
-     * 3. 음성 인식·자막 세션 시작
-     *
-     * POST /sessions/start
-     * body:
-     * {
-     *   meeting_id: string,
-     *   session_id: string
-     * }
-     */
     await apiClient.post<StartSessionResponse>(
       "/sessions/start",
       {
@@ -164,14 +169,11 @@ export async function joinMeeting(
       meetingId,
       sessionId: session.session_id,
       identity: token.identity,
+      appUserId,
       username,
       language,
     });
 
-    /**
-     * 참가자·자막 목록 조회 API는 아직 없으므로
-     * 실제 연결 시 초기값으로 빈 배열을 반환
-     */
     return {
       meetingId,
       sessionId: session.session_id,
@@ -185,10 +187,6 @@ export async function joinMeeting(
   } catch (error) {
     console.error("회의 입장 처리 중 오류가 발생했습니다.", error);
 
-    /**
-     * 세션 생성 이후 Token 발급이나 start 요청에서 실패한 경우
-     * 앞에서 만들어진 Communication 세션 제거
-     */
     if (createdSessionId) {
       await cleanupCreatedSession(createdSessionId);
     }
@@ -199,13 +197,6 @@ export async function joinMeeting(
 
 /**
  * 회의 나가기
- *
- * 주의:
- * meetingId가 아니라 백엔드에서 생성된 sessionId를 전달해야 함
- *
- * 처리 순서
- * 1. 음성 인식·자막 세션 중지
- * 2. Communication 세션 삭제
  */
 export async function leaveMeeting(
   sessionId: string,
@@ -250,16 +241,6 @@ export async function leaveMeeting(
 
 /**
  * 회의 종료
- *
- * 진행자가 전체 회의를 종료할 때 사용
- *
- * 처리 순서
- * 1. 음성 인식·자막 세션 중지
- * 2. ACS 통화 종료 요청
- * 3. Communication 세션 삭제
- *
- * hang_up=true:
- * call_connection_id가 존재하면 전체 통화를 종료
  */
 export async function endMeeting(
   sessionId: string,
@@ -303,24 +284,7 @@ export async function endMeeting(
 }
 
 /**
- * AI 어시스턴트에게 질문 (에이전트 백엔드 연동)
- *
- * 엔드포인트:
- *   POST /agent/sessions/{meetingId}/query
- *
- * 요청 body:
- * {
- *   userId: string,
- *   message: string,
- *   responseLanguage: Language
- * }
- *
- * 응답:
- * {
- *   queryId: string,
- *   intent: string,
- *   answer: string    // → ChatMessage({ role: "ai", text })로 변환해서 반환
- * }
+ * AI 어시스턴트에게 질문
  */
 export async function askAssistant(
   meetingId: string,
@@ -340,7 +304,6 @@ export async function askAssistant(
     };
   }
 
-  // 에이전트 백엔드는 요청/응답 형식이 fe의 ChatMessage와 달라서 여기서 변환한다.
   const res = await apiClient.post<{
     queryId: string;
     intent: string;
@@ -356,10 +319,6 @@ export async function askAssistant(
 
 /**
  * 회의록(.docx) 다운로드
- *
- * GET /agent/sessions/{meetingId}/minutes/download
- * 백엔드가 '그 시점 전체 자막'으로 회의록을 새로 생성해 Word 파일로 내려준다.
- * (gpt 생성이라 수십 초 걸릴 수 있음)
  */
 export async function downloadMinutes(meetingId: string): Promise<void> {
   if (ENV.useMock) {
@@ -389,7 +348,6 @@ export async function downloadMinutes(meetingId: string): Promise<void> {
 
   const blob = await res.blob();
 
-  // 파일명은 응답 헤더(Content-Disposition)에서 추출, 없으면 기본값
   let filename = "회의록.docx";
   const disposition = res.headers.get("Content-Disposition") ?? "";
   const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
@@ -401,7 +359,6 @@ export async function downloadMinutes(meetingId: string): Promise<void> {
     }
   }
 
-  // 브라우저 다운로드 트리거
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
