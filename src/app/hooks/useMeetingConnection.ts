@@ -469,8 +469,8 @@ export function useMeetingConnection(
   /**
    * AI 어시스턴트에게 질문
    *
-   * AI 질문 API는 sessionId가 아닌
-   * 서비스의 meetingId를 사용합니다.
+   * AI 질문 API는 같은 room 참가자들의 자막까지
+   * 조회해야 하므로 meetingId를 사용합니다.
    */
   const sendChat = useCallback(
     async (

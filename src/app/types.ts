@@ -5,6 +5,8 @@ export type Tab = "transcript" | "chat";
 export interface TranscriptEntry {
   id: string;
   speakerIdx: number;
+  speakerId?: string;
+  speakerName?: string;
   original: string;
   originalLanguage?: Language;
   translations: Record<Language, string>;

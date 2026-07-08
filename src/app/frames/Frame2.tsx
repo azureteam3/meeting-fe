@@ -39,7 +39,7 @@ export function Frame2({
           initial={{ opacity: 0, y: 24, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.45 }}
-          className="bg-white rounded-3xl shadow-xl shadow-black/[0.08] border border-black/[0.05] overflow-hidden"
+          className="bg-white rounded-3xl shadow-xl shadow-black/[0.08] border border-black/[0.05]"
         >
           {/* Card header */}
           <div className="px-8 pt-8 pb-6 border-b border-black/[0.05]">
@@ -113,7 +113,7 @@ export function Frame2({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -4, scale: 0.97 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute top-full left-0 right-0 mt-1 bg-white border border-black/[0.08] rounded-xl shadow-lg shadow-black/[0.1] overflow-hidden z-50"
+                      className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl border border-black/[0.08] bg-white shadow-lg shadow-black/[0.1] z-50 [scrollbar-width:thin]"
                     >
                       {LANG_OPTIONS.map((opt) => (
                         <button

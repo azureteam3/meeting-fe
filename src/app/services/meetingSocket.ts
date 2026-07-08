@@ -74,6 +74,7 @@ interface TranscriptPayload {
   language?: Language;
   created_at?: string;
   speaker_id?: string;
+  speaker_name?: string;
   speaker_idx?: number;
   speakerIdx?: number;
   username?: string;
@@ -626,6 +627,11 @@ export class MeetingSocket {
         payload.speakerIdx ??
         payload.speaker_idx ??
         0,
+
+      speakerId: payload.speaker_id,
+      speakerName:
+        payload.username ??
+        payload.speaker_name,
 
       ts: payload.created_at
         ? this.formatTimestamp(payload.created_at)

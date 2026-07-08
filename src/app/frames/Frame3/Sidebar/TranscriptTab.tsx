@@ -1,25 +1,26 @@
+import { useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import type { Language, Participant, TranscriptEntry } from "../../../types";
 
 function getFallbackSpeaker(
-  participants: Participant[],
+  speakerName: string | undefined,
   language: Language,
   langLabel: Record<Language, string>,
 ): Participant {
-  return (
-    participants[0] ?? {
-      id: "unknown-speaker",
-      name: "알 수 없는 화자",
-      country: "KR",
-      flag: "🎙️",
-      lang: language,
-      langLabel: langLabel[language],
-      initials: "화",
-      color: "#6B7280",
-      bg: "#F3F4F6",
-      role: "participant",
-    }
-  );
+  const name = speakerName?.trim() || "알 수 없는 화자";
+
+  return {
+    id: `speaker-${name}`,
+    name,
+    country: "",
+    flag: "🎙️",
+    lang: language,
+    langLabel: langLabel[language],
+    initials: name.charAt(0) || "화",
+    color: "#6B7280",
+    bg: "#F3F4F6",
+    role: "participant",
+  };
 }
 
 export function TranscriptTab({
@@ -33,6 +34,20 @@ export function TranscriptTab({
   transcripts: TranscriptEntry[];
   participants: Participant[];
 }) {
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const latestTranscript = transcripts[transcripts.length - 1];
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [
+    transcripts.length,
+    latestTranscript?.original,
+    latestTranscript?.translations[language],
+  ]);
+
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ scrollbarWidth: "none" }}>
       <div className="flex items-center gap-2 mb-4">
@@ -45,9 +60,13 @@ export function TranscriptTab({
       )}
 
       {transcripts.map((entry, i) => {
+        const namedSpeaker = entry.speakerName
+          ? participants.find((participant) => participant.name === entry.speakerName)
+          : undefined;
         const speaker =
-          participants[entry.speakerIdx] ??
-          getFallbackSpeaker(participants, language, langLabel);
+          namedSpeaker ??
+          (!entry.speakerName ? participants[entry.speakerIdx] : undefined) ??
+          getFallbackSpeaker(entry.speakerName, language, langLabel);
         const originalLanguage = entry.originalLanguage ?? speaker.lang;
         const needsTranslation = originalLanguage !== language;
         const translated =
@@ -95,6 +114,7 @@ export function TranscriptTab({
           </motion.div>
         );
       })}
+      <div ref={endRef} />
     </div>
   );
 }

@@ -32,6 +32,20 @@ const LANG_LABEL: Record<Language, string> = {
   zh: "中文",
 };
 
+const LANG_COUNTRY: Record<Language, string> = {
+  ko: "KR",
+  en: "US",
+  ja: "JP",
+  zh: "CN",
+};
+
+const LANG_FLAG: Record<Language, string> = {
+  ko: "🇰🇷",
+  en: "🇺🇸",
+  ja: "🇯🇵",
+  zh: "🇨🇳",
+};
+
 function formatTime(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
     .toString()
@@ -278,8 +292,8 @@ export function Frame3({
     const me: Participant = {
       id: "local-user",
       name: username,
-      country: "KR",
-      flag: "🇰🇷",
+      country: LANG_COUNTRY[language],
+      flag: LANG_FLAG[language],
       lang: language,
       langLabel: LANG_LABEL[language],
       initials: username.trim().charAt(0) || "나",
@@ -340,6 +354,7 @@ export function Frame3({
               participants={displayParticipants}
               activeSpeakerIdx={displayActiveSpeakerIdx}
               currentUserName={username}
+              currentUserLanguage={language}
               localVideoStream={vidOn ? localVideoStream : null}
               remoteParticipants={remoteParticipants}
               remoteVideoMap={remoteVideoMap}
