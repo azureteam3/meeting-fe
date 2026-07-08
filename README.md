@@ -1,23 +1,4 @@
-<<<<<<< HEAD
-# 🌐 AI Multilingual Meeting System UI
 
-AI 기반 실시간 회의 시스템 프론트엔드 레포지토리입니다.  
-음성 인식(STT) 및 다국어 번역 회의 기능을 지원합니다.
-
----
-
-## 🚀 Live Demo
-
-현재 배포된 페이지를 아래 링크에서 바로 확인해 보실 수 있습니다. (AI 기반 실시간 회의 시스템 프론트엔드 접속 링크)
-* 👉 [배포 링크 (Vercel)](https://azure-ai-meeting-agent-frontend.vercel.app)
-
----
-
-## 🖥️ Running the Project (Local)
-
-로컬 환경에서 프로젝트를 실행하려면 아래 명령어를 차례대로 입력하세요.
-
-### 1. 패키지 설치
 =======
 # AI Meeting Frontend
 
@@ -304,41 +285,13 @@ VITE_USE_MOCK=false
 npm install
 ```
 
-<<<<<<< HEAD
 ### 2. 개발 서버 시작
-=======
-### 개발 서버 실행
-
->>>>>>> feature/dev2
 ```bash
 npm run dev
 ```
 
-<<<<<<< HEAD
 ### 3. 프로덕션 빌드
-=======
-기본 주소:
 
-```text
-http://localhost:5173
-```
-
-특정 회의방으로 접속:
-
-```text
-http://localhost:5173/?room=a
-```
-
-### 프로덕션 빌드
-
->>>>>>> feature/dev2
-```bash
-npm run build
-```
-
-<<<<<<< HEAD
-### 💡 서버가 시작되면 브라우저에서 http://localhost:5173 으로 접속하세요.
-  # meeting-fe
 =======
 ## Docker/Nginx
 
@@ -385,5 +338,3 @@ src/app
 - 마이크 음성인식은 브라우저 권한이 필요합니다. 자동 시작이 막히면 마이크 버튼으로 다시 시도합니다.
 - `VITE_USE_MOCK=true`이면 백엔드 없이 로컬 목업 데이터로 동작하지만 ACS, 회의록 다운로드, 실제 STT는 사용할 수 없습니다.
 - ACS 토큰 오류가 나면 `/communication/token` 응답의 `token`이 JWT 형식인지 확인해야 합니다.
-
->>>>>>> feature/dev2
